@@ -48,8 +48,8 @@ resource "aws_cloudwatch_log_group" "this" {
 }
 
 resource "aws_apigatewayv2_api" "this" {
-  name          = var.name
-  protocol_type = "HTTP"
+  name                         = var.name
+  protocol_type                = "HTTP"
   disable_execute_api_endpoint = true
 
   cors_configuration {
@@ -93,10 +93,10 @@ resource "aws_apigatewayv2_integration" "this" {
   api_id           = aws_apigatewayv2_api.this.id
   integration_type = "AWS_PROXY"
 
-  connection_type      = "INTERNET"
-  description          = var.description
-  integration_method   = "POST"
-  integration_uri      = aws_lambda_function.this.invoke_arn
+  connection_type    = "INTERNET"
+  description        = var.description
+  integration_method = "POST"
+  integration_uri    = aws_lambda_function.this.invoke_arn
 }
 
 resource "aws_apigatewayv2_route" "this" {
@@ -119,7 +119,7 @@ resource "aws_route53_zone" "this" {
 }
 
 resource "aws_acm_certificate" "this" {
-  domain_name = aws_route53_zone.this.name
+  domain_name       = aws_route53_zone.this.name
   validation_method = "DNS"
 
   lifecycle {
