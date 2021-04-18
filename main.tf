@@ -50,6 +50,7 @@ resource "aws_cloudwatch_log_group" "this" {
 resource "aws_apigatewayv2_api" "this" {
   name          = var.name
   protocol_type = "HTTP"
+  disable_execute_api_endpoint = true
 
   cors_configuration {
     allow_headers = [
@@ -113,12 +114,8 @@ resource "aws_lambda_permission" "this" {
   source_arn = "${aws_apigatewayv2_api.this.execution_arn}/*/*"
 }
 
-output "api_gateway_endpoint" {
-  value = aws_apigatewayv2_api.this.api_endpoint
-}
-
 resource "aws_route53_zone" "this" {
-  name = "gateway-lambda-demo.com"
+  name = "${var.name}.com"
 }
 
 resource "aws_acm_certificate" "this" {
