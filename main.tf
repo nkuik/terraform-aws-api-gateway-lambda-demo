@@ -48,8 +48,9 @@ resource "aws_cloudwatch_log_group" "this" {
 }
 
 resource "aws_apigatewayv2_api" "this" {
-  name          = var.name
-  protocol_type = "HTTP"
+  name                         = var.name
+  protocol_type                = "HTTP"
+  disable_execute_api_endpoint = true
 
   cors_configuration {
     allow_headers = [
@@ -92,10 +93,10 @@ resource "aws_apigatewayv2_integration" "this" {
   api_id           = aws_apigatewayv2_api.this.id
   integration_type = "AWS_PROXY"
 
-  connection_type      = "INTERNET"
-  description          = var.description
-  integration_method   = "POST"
-  integration_uri      = aws_lambda_function.this.invoke_arn
+  connection_type    = "INTERNET"
+  description        = var.description
+  integration_method = "POST"
+  integration_uri    = aws_lambda_function.this.invoke_arn
 }
 
 resource "aws_apigatewayv2_route" "this" {
@@ -113,33 +114,59 @@ resource "aws_lambda_permission" "this" {
   source_arn = "${aws_apigatewayv2_api.this.execution_arn}/*/*"
 }
 
-output "api_gateway_endpoint" {
-  value = aws_apigatewayv2_api.this.api_endpoint
+resource "aws_route53_zone" "this" {
+  name = "${var.name}.com"
 }
 
-resource "aws_route53_zone" "zone" {
-  name = "terraform-aws-api-gateway-lambda-demo.com"
-}
-
-resource "aws_acm_certificate" "zone" {
-  domain_name = "*.${aws_route53_zone.zone.name}"
+resource "aws_acm_certificate" "this" {
+  domain_name       = aws_route53_zone.this.name
   validation_method = "DNS"
-}
 
-resource "aws_apigatewayv2_domain_name" "this" {
-  domain_name = "terraform-aws-api-gateway-lambda-demo.com"
-
-  domain_name_configuration {
-    certificate_arn = aws_acm_certificate.zone.arn
-    endpoint_type   = "REGIONAL"
-    security_policy = "TLS_1_2"
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
-resource "aws_route53_record" "this" {
+resource "aws_route53_record" "zone" {
+  for_each = {
+    for dvo in aws_acm_certificate.this.domain_validation_options : dvo.domain_name => {
+      name   = dvo.resource_record_name
+      record = dvo.resource_record_value
+      type   = dvo.resource_record_type
+    }
+  }
+
+  allow_overwrite = true
+  name            = each.value.name
+  records         = [each.value.record]
+  ttl             = 300
+  type            = each.value.type
+  zone_id         = aws_route53_zone.this.zone_id
+}
+
+resource "aws_acm_certificate_validation" "this" {
+  certificate_arn         = aws_acm_certificate.this.arn
+  validation_record_fqdns = [for record in aws_route53_record.zone : record.fqdn]
+}
+
+resource "aws_apigatewayv2_domain_name" "this" {
+  domain_name = aws_route53_zone.this.name
+
+  domain_name_configuration {
+    certificate_arn = aws_acm_certificate.this.arn
+    endpoint_type   = "REGIONAL"
+    security_policy = "TLS_1_2"
+  }
+
+  depends_on = [
+    aws_acm_certificate_validation.this,
+  ]
+}
+
+resource "aws_route53_record" "api_gateway_record" {
   name    = aws_apigatewayv2_domain_name.this.domain_name
   type    = "A"
-  zone_id = aws_route53_zone.zone.zone_id
+  zone_id = aws_route53_zone.this.zone_id
 
   alias {
     name                   = aws_apigatewayv2_domain_name.this.domain_name_configuration[0].target_domain_name
@@ -153,15 +180,3 @@ resource "aws_apigatewayv2_api_mapping" "this" {
   domain_name = aws_apigatewayv2_domain_name.this.id
   stage       = aws_apigatewayv2_stage.this.id
 }
-
-
-# resource "aws_route53_record" "wildcard" {
-#   zone_id = aws_route53_zone.zone.zone_id
-#   name    = "*.${var.aws_account_name}.come"
-#   type    = "CNAME"
-#   ttl     = "300"
-
-#   records = [
-#     "internal.${var.aws_account_name}.tgtg.ninja",
-#   ]
-# }
