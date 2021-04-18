@@ -118,7 +118,7 @@ output "api_gateway_endpoint" {
 }
 
 resource "aws_route53_zone" "this" {
-  name = "terraform-aws-api-gateway-lambda-demo.com"
+  name = "gateway-lambda-demo.com"
 }
 
 resource "aws_acm_certificate" "this" {
@@ -142,7 +142,7 @@ resource "aws_route53_record" "zone" {
   allow_overwrite = true
   name            = each.value.name
   records         = [each.value.record]
-  ttl             = 60
+  ttl             = 300
   type            = each.value.type
   zone_id         = aws_route53_zone.this.zone_id
 }
@@ -153,7 +153,7 @@ resource "aws_acm_certificate_validation" "this" {
 }
 
 resource "aws_apigatewayv2_domain_name" "this" {
-  domain_name = "terraform-aws-api-gateway-lambda-demo.com"
+  domain_name = aws_route53_zone.this.name
 
   domain_name_configuration {
     certificate_arn = aws_acm_certificate.this.arn
